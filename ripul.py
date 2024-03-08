@@ -12,93 +12,49 @@ def slugify(name):
 
 # 1. Site
 site_ids = {}
+manufacturer_ids = {}
+device_role_ids = {}
+device_type_ids = {}
+device_ids = {}
+interface_ids = {}
+vrfs_ids = {}
+
+def get_device_type_key(manufacturer, model):
+    return f'{manufacturer}-{model}'
 
 
 def setupper(ids, url, pick_key, pick_value):
     r = requests.get(API_URL + url + "?limit=100000", headers=AUTH)
     out = r.json()
     if out["results"] is None:
-        ids = {}
         return
 
     for result in out["results"]:
         ids[pick_key(result)] = pick_value(result)
 
-def setup_site_ids():
-    global site_ids
-    r = requests.get(API_URL + "/api/dcim/sites/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        site_ids = {}
-        return
 
-    for result in out["results"]:
-        site_ids[result["name"]] = result["id"]
+def getter(ids, key, url, payload):
+    if key in ids:
+        return ids[key]
+
+    r = requests.post(API_URL + url, json=payload, headers=AUTH)
+    out = r.json()
+    ids[key] = out["id"]
+
+    return out["id"]
 
 
 def get_site_id(name, status):
     global site_ids
-    ids = site_ids
-    if name in ids:
-        return ids[name]
-
-    payload = {"name": name, "slug": slugify(name), "status": status}
-    r = requests.post(API_URL + "/api/dcim/sites/", json=payload, headers=AUTH)
-    out = r.json()
-    site_id = out["id"]
-    ids[name] = site_id
-
-    return site_id
-
-# 2. Manufacturer
-manufacturer_ids = {}
-
-setupper(manufacturer_ids, "/api/dcim/manufacturers/", lambda r: r["name"], lambda r: r["id"])
-
-def setup_manufacturer_ids():
-    global manufacturer_ids
-    r = requests.get(API_URL + "/api/dcim/manufacturers/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        manufacturer_ids = {}
-        return
-
-    for result in out["results"]:
-        manufacturer_ids[result["name"]] = result["id"]
+    return getter(site_ids, name, "/api/dcim/sites/", {"name": name, "slug": slugify(name), "status": status})
 
 
 def get_manufacturer_id(name):
     global manufacturer_ids
-    if name in manufacturer_ids:
-        return manufacturer_ids[name]
-
-    payload = {"name": name, "slug": slugify(name)}
-    r = requests.post(API_URL + "/api/dcim/manufacturers/", json=payload, headers=AUTH)
-    out = r.json()
-    manufacturer_id = out["id"]
-    manufacturer_ids[name] = manufacturer_id
-
-    return manufacturer_id
+    return getter(manufacturer_ids, name, "/api/dcim/manufacturers/", {"name": name, "slug": slugify(name)})
 
 
 # 3. Device role
-device_role_ids = {}
-
-
-setupper(device_role_ids, "/api/dcim/device-roles/", lambda r: r["name"], lambda r: r["id"])
-
-def setup_device_role_ids():
-    global device_role_ids
-    r = requests.get(API_URL + "/api/dcim/device-roles/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        device_role_ids = {}
-        return
-
-    for result in out["results"]:
-        device_role_ids[result["name"]] = result["id"]
-
-
 def get_device_role_id(name):
     global device_role_ids
     if name in device_role_ids:
@@ -114,53 +70,22 @@ def get_device_role_id(name):
 
 
 # 4. Device type
-device_type_ids = {}
-
-
-setupper(device_type_ids, "/api/dcim/device-types/", lambda r: r["model"], lambda r: r["id"])
-
-def setup_device_type_ids():
-    global device_type_ids
-    r = requests.get(API_URL + "/api/dcim/device-types/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        device_type_ids = {}
-        return
-
-    for result in out["results"]:
-        device_type_ids[result["model"]] = result["id"]
-
-
 def get_device_type_id(model, manufacturer):
     global device_type_ids
-    if model in device_type_ids:
-        return device_type_ids[model]
+    device_type_key = get_device_type_key(manufacturer, model)
+    if device_type_key in device_type_ids:
+        return device_type_ids[device_type_key]
 
     payload = {"model": model, "slug": slugify(model), "manufacturer": manufacturer}
     r = requests.post(API_URL + "/api/dcim/device-types/", json=payload, headers=AUTH)
     out = r.json()
     device_type_id = out["id"]
-    device_type_ids[model] = device_type_id
+    device_type_ids[device_type_key] = device_type_id
 
     return device_type_id
 
 
 # 5. Device
-device_ids = {}
-
-
-def setup_device_ids():
-    global device_ids
-    r = requests.get(API_URL + "/api/dcim/devices/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        device_ids = {}
-        return
-
-    for result in out["results"]:
-        device_ids[result["name"]] = result["id"]
-
-
 def get_device_id(name, site, device_role, device_type):
     global device_ids
     if name in device_ids:
@@ -176,19 +101,7 @@ def get_device_id(name, site, device_role, device_type):
 
 
 # 6. Interface
-interface_ids = {}
 
-
-def setup_interface_ids():
-    global interface_ids
-    r = requests.get(API_URL + "/api/dcim/interfaces/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        interface_ids = {}
-        return
-
-    for result in out["results"]:
-        interface_ids[result["device"]["id"]] = result["id"]
 
 
 def get_interface_id(device_id):
@@ -206,24 +119,14 @@ def get_interface_id(device_id):
 
 
 # 7. vrfs
-vrfs_ids = {}
 
-
-def setup_vrfs_ids():
-    global vrfs_ids
-    r = requests.get(API_URL + "/api/ipam/vrfs/", headers=AUTH)
-    out = r.json()
-    if out["results"] is None:
-        vrfs_ids = {}
-        return
-
-    for result in out["results"]:
-        vrfs_ids[result["name"]] = result["id"]
-
-
+setupper(manufacturer_ids, "/api/dcim/manufacturers/", lambda r: r["name"], lambda r: r["id"])
+setupper(device_role_ids, "/api/dcim/device-roles/", lambda r: r["name"], lambda r: r["id"])
+setupper(device_type_ids, "/api/dcim/device-types/", lambda r: get_device_type_key(r["manufacturer"]["id"], r["model"]), lambda r: r["id"])
 setupper(device_ids, "/api/dcim/devices/", lambda r: r["name"], lambda r: r["id"])
 setupper(site_ids, "/api/dcim/sites/", lambda r: r["name"], lambda r: r["id"])
 setupper(interface_ids, "/api/dcim/interfaces/", lambda r: r["device"]["id"], lambda r: r["id"])
+setupper(vrfs_ids, "/api/ipam/vrfs/", lambda r: r["name"], lambda r: r["id"])
 
 
 def get_vrfs_id(name):
@@ -240,28 +143,32 @@ def get_vrfs_id(name):
     return vrfs_id
 
 
-# setup_site_ids()
-# setup_manufacturer_ids()
-# setup_device_role_ids()
-# setup_device_type_ids()
-# setup_device_ids()
-# setup_interface_ids()
-# setup_vrfs_ids()
+def put_ip_address(ip_address, vrf_id, interface_id, status):
+    payload = {"address": ip_address, "status": status, "assigned_object_id": interface_id, "assigned_object_type": "dcim.interface", "vrf": vrf_id}
+    requests.post(API_URL + "/api/ipam/ip-addresses/", json=payload, headers=AUTH)
 
-device_id = get_device_id("Jeren reititin", get_site_id("Jeren koti", "active"), get_device_role_id("Router"), get_device_type_id("AC1750", get_manufacturer_id("tp-link")))
 
-print(device_id)
-interface_id = get_interface_id(device_id)
-print(interface_id)
+csv = [
+    # site  status    name       ip_address                        device_type   manufactur   role
+    ["S01", "Active", "device1", ["10.10.10.1/24", "10.10.10.2/24"], "router2000", "Cisco", "Switch"],
+    ["S02", "Active", "device2", ["10.10.10.1/24", "10.10.10.2/24"], "router2000", "Tampereen Infra Oy", "Switch"],
+]
 
-vrfs_id = get_vrfs_id("Jeren koti")
-payload = {"address": f"192.168.0.1/32", "status": "active", "assigned_object_id": interface_id, "assigned_object_type": "dcim.interface", "vrf": vrfs_id}
-r = requests.post(API_URL + "/api/ipam/ip-addresses/", json=payload, headers=AUTH)
-print(r.status_code)
-print(r.json())
 
-# for i in range(255):
-#     payload = {"address": f"192.168.0.{i}/32", "status": "active", "assigned_object_id": interface_id, "assigned_object_type": "dcim.interface"}
-#     r = requests.post(API_URL + "/api/ipam/ip-addresses/", json=payload, headers=AUTH)
+for row in csv:
+    r = {
+        "site": row[0],
+        "status": row[1],
+        "name": row[2],
+        "ip_address": row[3],
+        "device_type": row[4],
+        "manufacturer": row[5],
+        "role": row[6],
+    }
 
-# print(device_ids)
+    device_id = get_device_id(r["name"], get_site_id(r["site"], r["status"].lower()), get_device_role_id(r["role"]), get_device_type_id(r["device_type"], get_manufacturer_id(r["manufacturer"])))
+    interface_id = get_interface_id(device_id)
+
+    for ip in r["ip_address"]:
+        print(ip)
+        put_ip_address(ip, get_vrfs_id(r["site"]), interface_id, r["status"].lower())
